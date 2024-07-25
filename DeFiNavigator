@@ -1,0 +1,139 @@
+import hashlib
+import time
+from typing import List, Dict
+
+class Account:
+    def __init__(self, address):
+        self.address = address
+        self.balance = 0
+        self.staked = 0
+
+    def __str__(self):
+        return f"Account(Address: {self.address}, Balance: {self.balance}, Staked: {self.staked})"
+
+class Transaction:
+    def __init__(self, sender, recipient, amount):
+        self.sender = sender
+        self.recipient = recipient
+        self.amount = amount
+        self.timestamp = time.time()
+
+    def calculate_hash(self):
+        transaction_string = f"{self.sender}{self.recipient}{self.amount}{self.timestamp}"
+        return hashlib.sha256(transaction_string.encode()).hexdigest()
+
+    def __str__(self):
+        return f"Transaction({self.sender} -> {self.recipient}, Amount: {self.amount})"
+
+class Token:
+    def __init__(self, name, symbol, initial_supply):
+        self.name = name
+        self.symbol = symbol
+        self.total_supply = initial_supply
+        self.accounts = {"admin": Account("admin")}
+        self.accounts["admin"].balance = initial_supply
+
+    def transfer(self, sender, recipient, amount):
+        if self.accounts[sender].balance < amount:
+            print(f"Transaction from {sender} to {recipient} failed due to insufficient balance.")
+            return False
+        if recipient not in self.accounts:
+            self.accounts[recipient] = Account(recipient)
+        self.accounts[sender].balance -= amount
+        self.accounts[recipient].balance += amount
+        return True
+
+    def __str__(self):
+        return f"Token(Name: {self.name}, Symbol: {self.symbol}, Total Supply: {self.total_supply})"
+
+class Staking:
+    def __init__(self, token: Token, reward_rate: float):
+        self.token = token
+        self.reward_rate = reward_rate
+        self.stakes = {}  # Holds staking info {address: timestamp}
+
+    def stake_tokens(self, account_address, amount):
+        if self.token.transfer(account_address, "staking_pool", amount):
+            if account_address not in self.stakes:
+                self.stakes[account_address] = time.time()
+            else:
+                self.stakes[account_address] = time.time()
+            self.token.accounts[account_address].staked += amount
+            print(f"{amount} tokens staked by {account_address}.")
+            return True
+        return False
+
+    def calculate_rewards(self, account_address):
+        if account_address not in self.stakes:
+            return 0
+        staked_time = time.time() - self.stakes[account_address]
+        staked_amount = self.token.accounts[account_address].staked
+        return staked_amount * self.reward_rate * staked_time
+
+    def withdraw_stake(self, account_address):
+        if account_address not in self.stakes:
+            print(f"No stakes found for {account_address}.")
+            return False
+        rewards = self.calculate_rewards(account_address)
+        staked_amount = self.token.accounts[account_address].staked
+        self.token.accounts[account_address].balance += staked_amount + rewards
+        self.token.accounts[account_address].staked = 0
+        del self.stakes[account_address]
+        print(f"{account_address} withdrew {staked_amount} staked tokens and {rewards} rewards.")
+        return True
+
+class DeFiPlatform:
+    def __init__(self, token_name, token_symbol, initial_supply, reward_rate):
+        self.token = Token(token_name, token_symbol, initial_supply)
+        self.staking = Staking(self.token, reward_rate)
+
+    def create_account(self, address):
+        if address not in self.token.accounts:
+            self.token.accounts[address] = Account(address)
+            print(f"Account {address} created.")
+        else:
+            print(f"Account {address} already exists.")
+
+    def transfer_tokens(self, sender, recipient, amount):
+        if self.token.transfer(sender, recipient, amount):
+            print(f"Transaction successful: {sender} -> {recipient}, Amount: {amount}.")
+        else:
+            print(f"Transaction failed: {sender} -> {recipient}, Amount: {amount}.")
+
+    def stake_tokens(self, account_address, amount):
+        self.staking.stake_tokens(account_address, amount)
+
+    def withdraw_stake(self, account_address):
+        self.staking.withdraw_stake(account_address)
+
+    def check_balance(self, address):
+        if address in self.token.accounts:
+            account = self.token.accounts[address]
+            print(account)
+        else:
+            print(f"Account {address} not found.")
+
+# Example Usage
+defi = DeFiPlatform(token_name="DeFiToken", token_symbol="DFT", initial_supply=1000, reward_rate=0.0001)
+
+# Create accounts
+defi.create_account("alice")
+defi.create_account("bob")
+
+# Transfer tokens
+defi.transfer_tokens("admin", "alice", 100)
+defi.transfer_tokens("alice", "bob", 50)
+
+# Stake tokens
+defi.stake_tokens("alice", 50)
+
+# Wait for some time to accumulate rewards
+time.sleep(5)
+
+# Withdraw stake and rewards
+defi.withdraw_stake("alice")
+
+# Check balances
+defi.check_balance("admin")
+defi.check_balance("alice")
+defi.check_balance("bob")
